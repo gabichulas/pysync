@@ -1,0 +1,1 @@
+El motor de sincronizacion pysync es una herramienta de linea de comandos. Su objetivo principal es optimizar el ancho de banda. Para lograr esto, divide los archivos en bloques pequeños y calcula firmas criptograficas. Si un bloque ya existe en el servidor remoto, no se transmite por la red. Esto ahorra muchisimo tiempo en conexiones lentas o bases de datos gigantes.
