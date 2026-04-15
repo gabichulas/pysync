@@ -33,7 +33,7 @@ def generate_manifest(file_path: str, block_size: int) -> dict:
             
     return manifest
 
-def calculate_delta(new_file_path: str, manifest: dict, block_size: int):
+def calculate_delta(new_file_path: str, manifest: dict, block_size: int, progress_callback=None):
 
     literal_buffer = bytearray()
     
@@ -42,12 +42,26 @@ def calculate_delta(new_file_path: str, manifest: dict, block_size: int):
         
     cursor = 0
     file_length = len(new_data)
+    last_reported_percent = -1
+
+    def report_progress():
+        nonlocal last_reported_percent
+        if not progress_callback or file_length == 0:
+            return
+
+        current_percent = int((cursor / file_length) * 100)
+        if current_percent != last_reported_percent:
+            last_reported_percent = current_percent
+            progress_callback(cursor, file_length)
     
     while cursor < file_length:
+        report_progress()
         window = new_data[cursor : cursor + block_size]
         
         if len(window) < block_size:
             literal_buffer.extend(window)
+            cursor = file_length
+            report_progress()
             break
             
         weak = get_weak_hash(window)
@@ -67,11 +81,13 @@ def calculate_delta(new_file_path: str, manifest: dict, block_size: int):
                     yield ('BLOCK', block_index)
                     
                     cursor += block_size
+                    report_progress()
                     break
                     
         if not match_found:
             literal_buffer.append(new_data[cursor])
             cursor += 1
+            report_progress()
             
     if literal_buffer:
         yield ('LITERAL', bytes(literal_buffer))

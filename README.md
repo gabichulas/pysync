@@ -8,6 +8,9 @@ The defining architectural feature of `pysync` is its ephemeral deployment model
 
 ## Architecture
 
+![Diagram](img/diagram.png)
+
+
 The synchronization process is divided into three distinct, automated phases:
 
 1. **Manifest Pull:** The local orchestrator initiates an SSH tunnel, passing a compressed tarball of the `pysync` source code via `stdin`. The remote server extracts this into a temporary directory, scans the destination file (if it exists), and generates a manifest of its blocks. This manifest and the temporary path are returned to the local machine as a JSON payload.

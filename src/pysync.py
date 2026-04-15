@@ -7,6 +7,21 @@ import subprocess
 from engine import generate_manifest, calculate_delta
 from protocol import pack_instruction, unpack_stream
 
+
+def print_progress(label: str, current: int, total: int):
+    if total <= 0:
+        return
+
+    percent = int((current / total) * 100)
+    percent = min(percent, 100)
+    sys.stderr.write(f"\r{label}: {percent:3d}% ({current}/{total} bytes)")
+    sys.stderr.flush()
+
+
+def finish_progress():
+    sys.stderr.write("\n")
+    sys.stderr.flush()
+
 def parse_ssh(target: str):
     if ":" in target:
         conn_info, file_path = target.split(":", 1)
@@ -123,10 +138,18 @@ def main():
                 remote_tmpdir = remote_response["tmpdir"]
                 remote_manifest = {int(k): v for k, v in raw_manifest.items()}
                 
-                delta_stream = calculate_delta(args.source, remote_manifest, args.block_size)
-                binary_patch = b""
+                delta_stream = calculate_delta(
+                    args.source,
+                    remote_manifest,
+                    args.block_size,
+                    progress_callback=lambda current, total: print_progress("Calculating delta", current, total),
+                )
+                binary_patch_parts = []
                 for action, payload in delta_stream:
-                    binary_patch += pack_instruction(action, payload)
+                    binary_patch_parts.append(pack_instruction(action, payload))
+
+                finish_progress()
+                binary_patch = b"".join(binary_patch_parts)
             except json.decoder.JSONDecodeError:
                 sys.exit(1)
             
@@ -140,8 +163,22 @@ def main():
             patch_cmd = ssh_prefix + [remote_patch_script]
             
             p_patch = subprocess.Popen(patch_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            
-            _, patch_stderr = p_patch.communicate(input=binary_patch)
+
+            sent_bytes = 0
+            patch_size = len(binary_patch)
+            chunk_size = 64 * 1024
+
+            while sent_bytes < patch_size:
+                next_chunk = binary_patch[sent_bytes:sent_bytes + chunk_size]
+                p_patch.stdin.write(next_chunk)
+                p_patch.stdin.flush()
+                sent_bytes += len(next_chunk)
+                print_progress("Sending patch", sent_bytes, patch_size)
+
+            p_patch.stdin.close()
+            p_patch.wait()
+            patch_stderr = p_patch.stderr.read()
+            finish_progress()
             
             if p_patch.returncode != 0:
                 print(f"[!] Error:\n{patch_stderr.decode()}")
