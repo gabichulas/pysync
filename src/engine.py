@@ -38,8 +38,6 @@ def calculate_delta(new_file_path: str, manifest: dict, block_size: int):
     literal_buffer = bytearray()
     
     with open(new_file_path, 'rb') as f:
-        # For this PoC, we load the file into memory. 
-        # In a real tool, we would stream this to save RAM.
         new_data = f.read()
         
     cursor = 0
@@ -48,7 +46,6 @@ def calculate_delta(new_file_path: str, manifest: dict, block_size: int):
     while cursor < file_length:
         window = new_data[cursor : cursor + block_size]
         
-        # If the remaining data is smaller than a block, it's a tail. Treat as literal.
         if len(window) < block_size:
             literal_buffer.extend(window)
             break
